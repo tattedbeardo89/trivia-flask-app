@@ -5,7 +5,7 @@ import html
 
 app = Flask(__name__)
 
-# Global variable
+# Global variable to hold quiz data
 quiz_data = []
 
 def fetch_quiz_data():
@@ -24,22 +24,30 @@ def fetch_quiz_data():
                 for item in data["results"]
             ]
             for item in quiz_data:
-                random.shuffle(item["options"])
+                random.shuffle(item["options"])  # Shuffle options
         else:
-            return None
+            quiz_data = []  # Clear quiz data if fetching fails
     except Exception as e:
-        return None
-    return quiz_data
+        quiz_data = []  # Clear quiz data on error
 
 @app.route('/')
 def index():
+    """Render the initial quiz page."""
     fetch_quiz_data()
     if quiz_data:
-        return render_template('index.html', question=quiz_data[0]["question"], options=quiz_data[0]["options"])
+        return render_template('index.html', question=quiz_data[0]["question"], options=quiz_data[0]["options"], current_question=0)
     return "Error loading quiz data!"
+
+@app.route('/quiz_data', methods=['GET'])
+def get_quiz_data():
+    """Provide quiz data as JSON for frontend use."""
+    if quiz_data:
+        return jsonify(quiz_data)
+    return jsonify({"error": "Quiz data not available"}), 500
 
 @app.route('/next_question', methods=['POST'])
 def next_question():
+    """Handle moving to the next question and updating the score."""
     global quiz_data
     current_question = int(request.form['current_question'])
     selected_answer = request.form['answer']
@@ -47,13 +55,21 @@ def next_question():
 
     if selected_answer == quiz_data[current_question]["answer"]:
         score += 1
-    
+
     current_question += 1
     if current_question < len(quiz_data):
         next_question = quiz_data[current_question]
-        return jsonify({"question": next_question["question"], "options": next_question["options"], "current_question": current_question, "score": score})
+        return jsonify({
+            "question": next_question["question"],
+            "options": next_question["options"],
+            "current_question": current_question,
+            "score": score
+        })
     else:
-        return jsonify({"message": f"You scored {score}/{len(quiz_data)}!", "score": score})
+        return jsonify({
+            "message": f"You scored {score}/{len(quiz_data)}!",
+            "score": score
+        })
 
 if __name__ == '__main__':
     app.run(debug=True)
